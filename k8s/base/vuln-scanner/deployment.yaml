@@ -1,0 +1,151 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vuln-scanner
+  namespace: vuln-scanner
+  labels:
+    app: vuln-scanner
+    app.kubernetes.io/name: vuln-scanner
+    app.kubernetes.io/part-of: secure-devsecops-platform
+    app.kubernetes.io/component: security-service
+  annotations:
+    seccomp.security.alpha.kubernetes.io/pod: "runtime/default"
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/metrics"
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: vuln-scanner
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: vuln-scanner
+        app.kubernetes.io/name: vuln-scanner
+        app.kubernetes.io/part-of: secure-devsecops-platform
+      annotations:
+        seccomp.security.alpha.kubernetes.io/pod: "runtime/default"
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: vuln-scanner-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534  # nobody user
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: vuln-scanner
+        image: ${ECR_REGISTRY}/vuln-scanner:latest
+        imagePullPolicy: Always
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        env:
+        - name: PORT
+          value: "8080"
+        - name: LOG_LEVEL
+          value: "info"
+        - name: SCAN_TIMEOUT
+          value: "5m"
+        - name: AWS_REGION
+          valueFrom:
+            configMapKeyRef:
+              name: vuln-scanner-config
+              key: aws_region
+        - name: S3_BUCKET_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: vuln-scanner-config
+              key: s3_bucket_name
+        - name: TRIVY_NO_PROGRESS
+          value: "true"
+        - name: TRIVY_TIMEOUT
+          value: "5m"
+        - name: TRIVY_SKIP_UPDATE
+          value: "false"
+        - name: TRIVY_IGNORE_UNFIXED
+          value: "false"
+        - name: TRIVY_SEVERITY
+          value: "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL"
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: vuln-scanner-secrets
+              key: jwt_secret
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        livenessProbe:
+          httpGet:
+            path: /v1/scan/healthz
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /v1/scan/healthz
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 2
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        - name: trivy-cache
+          mountPath: /home/appuser/.cache/trivy
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      - name: trivy-cache
+        emptyDir: {}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - vuln-scanner
+              topologyKey: "kubernetes.io/hostname"
+      nodeSelector:
+        kubernetes.io/os: linux
+      terminationGracePeriodSeconds: 60
+      tolerations:
+      - key: "node.kubernetes.io/not-ready"
+        operator: "Exists"
+        effect: "NoExecute"
+        tolerationSeconds: 30
+      - key: "node.kubernetes.io/unreachable"
+        operator: "Exists"
+        effect: "NoExecute"
+        tolerationSeconds: 30

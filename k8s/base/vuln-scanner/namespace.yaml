@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vuln-scanner
+  labels:
+    app: vuln-scanner
+    app.kubernetes.io/name: vuln-scanner
+    app.kubernetes.io/part-of: secure-devsecops-platform
+    app.kubernetes.io/component: security-service
+    istio-injection: enabled
+    kubernetes.io/metadata.name: vuln-scanner
+  annotations:
+    # Security annotations
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+    network-policy: enabled
+    # Compliance annotations
+    compliance.security/pci-dss: required
+    compliance.security/hipaa: not-applicable
+    compliance.security/gdpr: applicable
+    # Resource management
+    scheduler.alpha.kubernetes.io/node-selector: "env=secure"
+    # Audit annotations
+    audit.kubernetes.io/audit-level: RequestResponse
+    # Owner information
+    owner: security-team
+    contact: security@example.com
+    documentation: https://github.com/your-username/secure-devsecops-platform/docs/services/vuln-scanner

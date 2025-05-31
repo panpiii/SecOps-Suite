@@ -1,0 +1,124 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vuln-scanner-sa
+  namespace: vuln-scanner
+  labels:
+    app: vuln-scanner
+    app.kubernetes.io/name: vuln-scanner
+    app.kubernetes.io/part-of: secure-devsecops-platform
+    app.kubernetes.io/component: security-service
+  annotations:
+    # This annotation links the ServiceAccount to an IAM role in AWS
+    # The actual ARN will be populated by Terraform when creating the IAM role
+    eks.amazonaws.com/role-arn: "arn:aws:iam::${AWS_ACCOUNT_ID}:role/vuln-scanner-role"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: vuln-scanner-role
+  namespace: vuln-scanner
+  labels:
+    app: vuln-scanner
+    app.kubernetes.io/name: vuln-scanner
+    app.kubernetes.io/part-of: secure-devsecops-platform
+    app.kubernetes.io/component: security-service
+rules:
+  # Allow reading ConfigMaps in its own namespace (for configuration)
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch"]
+    
+  # Allow reading Secrets in its own namespace (for credentials)
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch"]
+    
+  # Allow creating and managing scan result resources
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+    
+  # Allow managing its own pods (for health checks and metrics)
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+    
+  # Allow access to the Kubernetes API for liveness probes
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get"]
+    resourceNames: ["kubernetes"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: vuln-scanner-rolebinding
+  namespace: vuln-scanner
+  labels:
+    app: vuln-scanner
+    app.kubernetes.io/name: vuln-scanner
+    app.kubernetes.io/part-of: secure-devsecops-platform
+    app.kubernetes.io/component: security-service
+subjects:
+  - kind: ServiceAccount
+    name: vuln-scanner-sa
+    namespace: vuln-scanner
+roleRef:
+  kind: Role
+  name: vuln-scanner-role
+  apiGroup: rbac.authorization.k8s.io
+---
+# Network Policy to restrict pod communication
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: vuln-scanner-network-policy
+  namespace: vuln-scanner
+  labels:
+    app: vuln-scanner
+    app.kubernetes.io/name: vuln-scanner
+    app.kubernetes.io/part-of: secure-devsecops-platform
+    app.kubernetes.io/component: security-service
+spec:
+  podSelector:
+    matchLabels:
+      app: vuln-scanner
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow ingress traffic from the API Gateway/Istio
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: istio-system
+    ports:
+    - protocol: TCP
+      port: 8080
+  # Allow ingress from Prometheus for metrics scraping
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 8080
+  egress:
+  # Allow egress to AWS ECR
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+    ports:
+    - protocol: TCP
+      port: 443
+  # Allow egress to DNS
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53

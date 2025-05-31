@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vuln-scanner-config
+  namespace: vuln-scanner
+  labels:
+    app: vuln-scanner
+    app.kubernetes.io/name: vuln-scanner
+    app.kubernetes.io/part-of: secure-devsecops-platform
+    app.kubernetes.io/component: security-service
+data:
+  aws_region: "us-east-1"
+  s3_bucket_name: "devsecops-logs-prod"
+  trivy_severity_threshold: "MEDIUM,HIGH,CRITICAL"
+  scan_result_retention_days: "90"
+  enable_detailed_reporting: "true"
+  max_concurrent_scans: "5"
+  report_format: "json"
+  scan_timeout_minutes: "10"
+  vulnerability_db_update_interval: "24h"
+  enable_sbom_generation: "true"
