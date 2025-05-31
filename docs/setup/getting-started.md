@@ -1,7 +1,7 @@
 # Getting Started
 
 Welcome!  
-This guide walks you from an empty AWS account to a fully-running Secure DevSecOps Platform in **≈ 60 minutes**.  
+This guide walks you from an empty AWS account to a fully-running **SecOps-Suite** deployment in **≈ 60 minutes**.  
 It assumes **basic familiarity with AWS CLI and Docker**—nothing more.
 
 ---
@@ -27,16 +27,16 @@ It assumes **basic familiarity with AWS CLI and Docker**—nothing more.
 
 ```bash
 aws configure --profile devsecops-admin
-# Access key, secret, default region (e.g. us-east-1), output json
+# Access Key, Secret, default region (e.g. us-east-1), json
 ```
 
 ---
 
-## 2  Clone Repository
+## 2  Clone the Repository
 
 ```bash
-git clone https://github.com/your-username/secure-devsecops-platform.git
-cd secure-devsecops-platform
+git clone https://github.com/panpiii/SecOps-Suite.git
+cd SecOps-Suite
 ```
 
 ---
@@ -62,7 +62,7 @@ terraform init
 terraform apply -var-file=environments/prod.tfvars   # ~20 min
 ```
 
-Creates VPC, EKS, IRSA, RDS audit DB, GuardDuty, WAF, CloudTrail, etc.
+Creates VPC, EKS (private API), IRSA, RDS audit DB, S3 logs (ObjectLock), KMS, GuardDuty, WAF, CloudTrail …
 
 ---
 
@@ -74,7 +74,7 @@ aws eks update-kubeconfig \
   --region $AWS_REGION \
   --name devsecops-eks-prod
 
-kubectl get nodes          # should list 3 Ready nodes
+kubectl get nodes
 ```
 
 ---
@@ -84,12 +84,12 @@ kubectl get nodes          # should list 3 Ready nodes
 Run from project root:
 
 ```bash
-make istio-install     # service mesh + mTLS
-make argocd-install    # GitOps control plane
-make prometheus-install
+make istio-install        # service mesh + mTLS
+make argocd-install       # GitOps control plane
+make prometheus-install   # monitoring stack
 ```
 
-Get Argo CD password & UI:
+Get Argo CD credentials:
 
 ```bash
 make argocd-password
@@ -98,7 +98,7 @@ make argocd-port-forward      # UI → https://localhost:8080
 
 ---
 
-## 7  Build & Push First Microservice
+## 7  Build & Push the Vulnerability Scanner
 
 ```bash
 cd services/vuln-scanner
@@ -107,34 +107,35 @@ make docker-build
 make docker-push
 ```
 
-Image is scanned by AWS ECR automatically.
+The image is automatically scanned by ECR.
 
 ---
 
-## 8  Wire GitHub Secrets
+## 8  Configure GitHub Actions Secrets
 
-Repo → Settings → Secrets & variables → Actions
+Repository → Settings → Secrets & variables → Actions
 
 | Secret | Value |
 |--------|-------|
-| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | from step 1 |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | from IAM user |
 | `AWS_REGION` | same as `.env` |
-| `AWS_ROLE_TO_ASSUME` | (recommended) federated CI role |
-| `COSIGN_PRIVATE_KEY` / `COSIGN_PASSWORD` | if signing images |
+| `AWS_ROLE_TO_ASSUME` | (recommended) CI federated role |
+| `COSIGN_PRIVATE_KEY` & `COSIGN_PASSWORD` | if signing images |
 | `SLACK_WEBHOOK` | for deployment alerts |
 | `ARGOCD_TOKEN` | Argo CD API token (optional) |
 
 ---
 
-## 9  Commit → CI Pipeline
+## 9  Commit → CI/CD Pipeline
 
-Push any commit; GitHub Actions pipeline will:
+Push any commit to `main`:
 
-1. Lint & unit tests  
-2. SAST / IaC scan (gosec, tfsec)  
-3. Build & scan image (Trivy)  
-4. SBOM + cosign sign → ECR  
-5. Update kustomization → Argo CD sync
+1. **Lint & Tests** – `golangci-lint`, `go test -race -cover`.  
+2. **SAST / IaC Scan** – `gosec`, `gitleaks`, `tfsec`.  
+3. **Build & Scan Image** – Buildx multi-arch, Trivy scan.  
+4. **Supply-chain** – SBOM generation, cosign signature.  
+5. **GitOps** – kustomize patch with new tag, commit to `k8s/overlays/staging`.  
+6. **Argo CD Sync** – cluster state reconciled automatically.
 
 ---
 
@@ -145,11 +146,11 @@ kubectl -n vuln-scanner get pods
 kubectl -n vuln-scanner logs -f deploy/vuln-scanner
 ```
 
-Health check:
+Retrieve gateway DNS & call health endpoint:
 
 ```bash
 GW=$(kubectl -n istio-system get svc istio-ingressgateway \
-      -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+       -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
 curl -H "Host: api.${DOMAIN_NAME}" https://$GW/v1/scan/healthz -k
 # → {"status":"ok"}
 ```
@@ -158,22 +159,25 @@ curl -H "Host: api.${DOMAIN_NAME}" https://$GW/v1/scan/healthz -k
 
 ## 11  Troubleshooting
 
-| Symptom | Likely Cause | Fix |
-|---------|--------------|-----|
-| `terraform lock` error | Stale state lock | `terraform force-unlock <id>` |
-| `kubectl timeout` | kubeconfig outdated | Re-run update-kubeconfig |
-| `ImagePullBackOff` | Node can’t pull from ECR | Ensure node IAM has `ECRReadOnly` |
-| TLS cert error curling service | Using IP not hostname | Add `Host:` header or Route53 record |
+| Symptom | Likely Cause | Resolution |
+|---------|-------------|------------|
+| `terraform lock` error | stale lock | `terraform force-unlock <ID>` |
+| `kubectl timeout` | kubeconfig outdated | re-run update-kubeconfig |
+| `ImagePullBackOff` | nodes lack ECR access | add `ECRReadOnly` to node role |
+| TLS error curling service | used IP not hostname | add `Host:` header or Route53 record |
 
 ---
 
-## 12  Next Steps
+## 12  Next Milestones
 
-* Add **Event Logger** & **Access Auditor** services.  
-* Install **OPA Gatekeeper**: `make gatekeeper-install`.  
-* Enable **Falco** runtime IDS: `make falco-install`.  
-* Hook Slack/PagerDuty for alerts in `charts/prometheus/alertmanager.yaml`.  
-* Experiment with **Blue/Green** roll-outs in kustomize overlays.
+| Objective | Starting Point |
+|-----------|----------------|
+| Add **Security Event Logger** | `services/event-logger/` |
+| Add **Access Auditor** | `services/access-auditor/` |
+| Enforce **OPA Gatekeeper** | `make gatekeeper-install` |
+| Enable **Falco** runtime IDS | `make falco-install` |
+| Integrate **Slack/PagerDuty** alerts | `charts/prometheus/alertmanager.yaml` |
+| Experiment with **Blue/Green** rollouts | kustomize overlays |
 
 ---
 
@@ -183,13 +187,19 @@ curl -H "Host: api.${DOMAIN_NAME}" https://$GW/v1/scan/healthz -k
 make destroy ENV=prod
 ```
 
+⚠️ Destroys all AWS resources created by Terraform.
+
 ---
 
-### 🎓 Keep Learning
+### 🎉 Congratulations!
 
-* Terraform modules, remote back-ends  
-* Kubernetes security: PodSecurityStandards, NetworkPolicies  
-* Container hardening: distroless, rootless runtime  
-* Cloud security: IRSA, WAF, GuardDuty
+You now have a fully operational, security-hardened **SecOps-Suite** showcasing:
 
-Happy hacking & stay secure!  
+* **Infrastructure-as-Code** with Terraform  
+* **GitOps** continuous delivery via Argo CD  
+* **Zero-Trust** networking with Istio mTLS  
+* **Shift-Left Security** baked into CI/CD  
+* A working **RESTful micro-service** (Vulnerability Scanner)
+
+Use this repository as a portfolio centerpiece in DevOps / Cloud / Cyber-Security interviews.  
+Happy hacking — and stay secure!  

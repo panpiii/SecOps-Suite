@@ -1,16 +1,16 @@
 # Step-by-Step Implementation Guide  
-Secure DevSecOps Platform – Cyber-Security Edition
-=================================================
+SecOps-Suite – Cyber-Security Edition
+====================================
 
-> Target duration: **≈ 60–90 minutes**  
+> Hands-on time: **≈ 60-90 minutes**  
 > Goal: provision AWS infrastructure with Terraform, deploy the **Vulnerability Scanner** micro-service to EKS via GitOps, and validate secure end-to-end operation.
 
 ---
 
 ## 0  Prerequisites
 
-| Tool | Min Version | Check |
-|------|------------|-------|
+| Tool | Min Version | Quick Check |
+|------|-------------|-------------|
 | Terraform | 1.6 | `terraform -version` |
 | AWS CLI   | 2.15 | `aws --version` |
 | kubectl   | = EKS v1.29 | `kubectl version --client` |
@@ -20,7 +20,8 @@ Secure DevSecOps Platform – Cyber-Security Edition
 | (opt) cosign | 2.2 | `cosign version` |
 | (opt) trivy | latest | `trivy -v` |
 
-AWS account: create IAM user **devsecops-admin** → programmatic + `AdministratorAccess` + MFA.
+**AWS account**  
+Create IAM user **devsecops-admin** → Programmatic access, `AdministratorAccess`, MFA enabled.
 
 ```bash
 aws configure --profile devsecops-admin
@@ -29,23 +30,22 @@ aws configure --profile devsecops-admin
 
 ---
 
-## 1  Fork & Clone the Repository
+## 1  Fork & Clone
 
 ```bash
-git fork https://github.com/your-username/secure-devsecops-platform.git
-git clone https://github.com/your-username/secure-devsecops-platform.git
-cd secure-devsecops-platform
+git clone https://github.com/panpiii/SecOps-Suite.git
+cd SecOps-Suite
 ```
 
-📚 *Learning checkpoint:* Git forking workflow & README-driven development.
+*Learning checkpoint → README-driven development & Git workflow.*
 
 ---
 
-## 2  Bootstrap Environment File
+## 2  Bootstrap `.env`
 
 ```bash
 cp .env.example .env
-vim .env   # adjust AWS_PROFILE, AWS_REGION, DOMAIN_NAME, etc.
+vim .env         # adjust AWS_PROFILE, AWS_REGION, DOMAIN_NAME …
 ```
 
 `.env` is **git-ignored**—safe for local secrets.
@@ -60,9 +60,9 @@ terraform init
 terraform apply -var-file=environments/prod.tfvars     # ≈20 min
 ```
 
-Creates VPC, EKS (private API), IRSA, RDS audit DB, S3 logs (ObjectLock), KMS, GuardDuty, WAF, CloudTrail…
+Creates VPC, EKS (private API), IRSA, RDS audit DB, S3 logs (ObjectLock), KMS, GuardDuty, WAF, CloudTrail …
 
-📚 *Checkpoint:* Infrastructure-as-Code & AWS shared-responsibility.
+*Checkpoint → Infrastructure-as-Code, state management, AWS shared responsibility.*
 
 ---
 
@@ -81,7 +81,7 @@ kubectl get nodes
 
 ## 5  Install Cluster Add-ons
 
-Run from project root:
+From project root:
 
 ```bash
 make istio-install        # service mesh + mTLS
@@ -89,14 +89,14 @@ make argocd-install       # GitOps control plane
 make prometheus-install   # monitoring stack
 ```
 
-Get Argo CD credentials:
+Get Argo CD credentials & UI:
 
 ```bash
 make argocd-password
-make argocd-port-forward      # UI → https://localhost:8080
+make argocd-port-forward   # https://localhost:8080
 ```
 
-📚 *Checkpoint:* Service mesh basics & continuous reconciliation with Argo CD.
+*Checkpoint → Service mesh concepts & continuous reconciliation.*
 
 ---
 
@@ -104,25 +104,25 @@ make argocd-port-forward      # UI → https://localhost:8080
 
 ```bash
 cd services/vuln-scanner
-make ecr-login          # one-time ECR auth
+make ecr-login            # one-time ECR auth
 make docker-build
 make docker-push
 ```
 
-The image is automatically scanned by ECR.
+Image is automatically scanned by ECR.
 
 ---
 
 ## 7  Configure GitHub Actions Secrets
 
-Repository → Settings → Secrets & variables → Actions
+Repo → Settings → Secrets & variables → Actions
 
 | Secret | Value |
 |--------|-------|
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | from IAM user |
 | `AWS_REGION` | same as `.env` |
 | `AWS_ROLE_TO_ASSUME` | (recommended) CI federated role |
-| `COSIGN_PRIVATE_KEY` & `COSIGN_PASSWORD` | if signing images |
+| `COSIGN_PRIVATE_KEY` / `COSIGN_PASSWORD` | if signing images |
 | `SLACK_WEBHOOK` | for deployment alerts |
 | `ARGOCD_TOKEN` | Argo CD API token (optional) |
 
@@ -130,16 +130,16 @@ Repository → Settings → Secrets & variables → Actions
 
 ## 8  Commit → CI/CD Pipeline
 
-Push any commit to `main`:
+Push any commit to **main** and watch the *Actions* tab:
 
-1. **Lint & Tests** – `golangci-lint`, `go test -race -cover`.  
-2. **SAST / IaC Scan** – `gosec`, `gitleaks`, `tfsec`.  
-3. **Build & Scan Image** – Buildx multi-arch, Trivy scan.  
-4. **Supply-chain** – SBOM generation, cosign signature.  
-5. **GitOps** – kustomize patch with new tag, commit to `k8s/overlays/staging`.  
-6. **Argo CD Sync** – cluster state reconciled automatically.
+1. Lint & unit tests  
+2. SAST / IaC scanning (`gosec`, `gitleaks`, `tfsec`)  
+3. Build & Trivy-scan image  
+4. Generate SBOM, cosign signature → ECR  
+5. Patch kustomize with new tag → commit to `k8s/overlays/staging`  
+6. Argo CD sync → EKS
 
-📚 *Checkpoint:* Supply-chain security (SLSA, SBOM) & OIDC → STS federation.
+*Checkpoint → Supply-chain security (SBOM, signatures) & GitHub OIDC → AWS STS.*
 
 ---
 
@@ -150,38 +150,38 @@ kubectl -n vuln-scanner get pods
 kubectl -n vuln-scanner logs -f deploy/vuln-scanner
 ```
 
-Retrieve gateway DNS & call health endpoint:
+Health check:
 
 ```bash
 GW=$(kubectl -n istio-system get svc istio-ingressgateway \
        -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
 curl -H "Host: api.${DOMAIN_NAME}" https://$GW/v1/scan/healthz -k
-# → {"status":"ok"}
+# {"status":"ok"}
 ```
 
 ---
 
-## 10  Troubleshooting Table
+## 10  Troubleshooting
 
 | Symptom | Likely Cause | Resolution |
 |---------|-------------|------------|
 | `terraform lock` error | stale lock | `terraform force-unlock <ID>` |
 | `kubectl timeout` | kubeconfig outdated | re-run update-kubeconfig |
 | `ImagePullBackOff` | nodes lack ECR access | add `ECRReadOnly` to node role |
-| TLS error curling service | used IP not hostname | add `Host:` header or Route53 record |
+| TLS error when curling | using IP not hostname | add `Host:` header or Route53 record |
 
 ---
 
 ## 11  Next Milestones
 
-| Objective | Starting Point |
+| Objective | Where to Start |
 |-----------|----------------|
 | Add **Security Event Logger** | `services/event-logger/` |
 | Add **Access Auditor** | `services/access-auditor/` |
 | Enforce **OPA Gatekeeper** | `make gatekeeper-install` |
 | Enable **Falco** runtime IDS | `make falco-install` |
-| Integrate **Slack/PagerDuty** alerts | `charts/prometheus/alertmanager.yaml` |
-| Experiment with **Blue/Green** rollouts | kustomize overlays |
+| Integrate Slack/PagerDuty alerts | `charts/prometheus/alertmanager.yaml` |
+| Experiment with Blue/Green roll-outs | kustomize overlays |
 
 ---
 
@@ -195,18 +195,9 @@ make destroy ENV=prod
 
 ---
 
-## 13  Keep Learning
-
-* Terraform modules & remote back-ends  
-* Kubernetes security: PodSecurityStandards, NetworkPolicies  
-* Container hardening: distroless images, rootless runtime  
-* Cloud security: IRSA, GuardDuty, WAF rules  
-
----
-
 ### 🎉 Congratulations!
 
-You now have a fully-operational, security-hardened DevSecOps platform showcasing:
+You now have a fully operational, security-hardened **SecOps-Suite** showcasing:
 
 * **Infrastructure-as-Code** with Terraform  
 * **GitOps** continuous delivery via Argo CD  
@@ -215,4 +206,4 @@ You now have a fully-operational, security-hardened DevSecOps platform showcasin
 * A working **RESTful micro-service** (Vulnerability Scanner)
 
 Use this repository as a portfolio centerpiece in DevOps / Cloud / Cyber-Security interviews.  
-Happy hacking — and stay secure!  
+Happy hacking — and stay secure!

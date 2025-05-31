@@ -1,10 +1,10 @@
-# Secure DevSecOps Platform
+# SecOps-Suite
 
-![Build](https://img.shields.io/github/actions/workflow/status/your-username/secure-devsecops-platform/ci.yml?label=CI%20Status)
-![License](https://img.shields.io/github/license/your-username/secure-devsecops-platform)
+![Build](https://img.shields.io/github/actions/workflow/status/panpiii/SecOps-Suite/ci.yml?label=CI%20Status)
+![License](https://img.shields.io/github/license/panpiii/SecOps-Suite)
 
-A hands-on, end-to-end reference implementation that shows how to **design, build, and operate secure microservices on AWS using modern DevOps & DevSecOps practices**.  
-It is intentionally opinionated toward security-first choices, making it an ideal portfolio project for roles in cybersecurity, FinTech, or cloud infrastructure engineering.
+A hands-on, end-to-end reference implementation that shows how to **design, build, and operate secure micro-services on AWS using modern DevOps & DevSecOps practices**.  
+It is intentionally opinionated toward security-first choices, making it an ideal portfolio project for roles in cybersecurity, FinTech, or cloud-infrastructure engineering.
 
 ---
 
@@ -24,9 +24,9 @@ It is intentionally opinionated toward security-first choices, making it an idea
 ---
 
 ## 1. Project Overview
-The Secure DevSecOps Platform provisions a production-ready AWS EKS cluster, deploys three security microservices, and wires a fully automated CI/CD pipeline that embeds security checks in every phase.
+**SecOps-Suite** provisions a production-ready AWS EKS cluster, deploys three security micro-services, and wires a fully automated CI/CD pipeline that embeds security checks in every phase.
 
-**Key goals**
+Key goals  
 * Demonstrate **Infrastructure-as-Code**, **GitOps**, and **Immutable Infrastructure** patterns.  
 * Provide concrete examples of **shift-left security**—static analysis, container scanning, policy enforcement.  
 * Offer a RESTful control plane to trigger deployments, collect security events, and audit access.  
@@ -35,7 +35,6 @@ The Secure DevSecOps Platform provisions a production-ready AWS EKS cluster, dep
 ---
 
 ## 2. Architecture
-
 ```
 ┌─────────────────────────GitHub─────────────────────────┐
 │  PR → CI Pipeline → Image Build + Tests + Sec Scans    │
@@ -58,7 +57,6 @@ The Secure DevSecOps Platform provisions a production-ready AWS EKS cluster, dep
    │  └────────────────┘                                         │
    └─────────────────────────────────────────────────────────────┘
 ```
-
 * All infrastructure is **codified with Terraform**.  
 * GitHub Actions pushes signed container images to **AWS ECR** after passing security gates (Trivy, Checkov, OPA).  
 * **Argo CD** reconciles Kubernetes manifests, enforcing GitOps.  
@@ -75,22 +73,20 @@ The Secure DevSecOps Platform provisions a production-ready AWS EKS cluster, dep
 | Orchestration        | Kubernetes, Helm/Argo CD | Declarative deployment, HPA, PodSecurityStandards |
 | CI/CD                | GitHub Actions | test → scan → build → sign → push → deploy |
 | Service Mesh         | Istio | mTLS, policy enforcement, observability |
-| Security Microservices | Go / Python | 1) Vulnerability Scanner, 2) Security Event Logger, 3) Access Auditor |
+| Security Services    | Go / Python | 1) Vulnerability Scanner, 2) Security Event Logger, 3) Access Auditor |
 | Observability        | Prometheus, Loki, Grafana | Metrics, logs, dashboards with alerting to Slack |
 
 ---
 
 ## 4. Security Highlights
-
 * **Infrastructure Security** – private subnets, IRSA, VPC flow logs.  
-* **Pipeline Security** – SBOM generation, container signing (cosign), IaC scanning (Checkov).  
+* **Pipeline Security** – SBOM generation, container signing (*cosign*), IaC scanning (*Checkov*).  
 * **Runtime Security** – Pod Security Standards, NetworkPolicies, Istio AuthorizationPolicy, optional Falco.  
 * **Audit & Compliance** – CloudTrail, RDS audit DB, log immutability via S3 ObjectLock, Security Hub & GuardDuty.  
 
 ---
 
 ## 5. Prerequisites
-
 * AWS account with administrative access for bootstrapping.  
 * `terraform >= 1.6`, `awscli`, `kubectl`, `helm`, Docker.  
 * GitHub account with Actions enabled.  
@@ -99,11 +95,10 @@ The Secure DevSecOps Platform provisions a production-ready AWS EKS cluster, dep
 ---
 
 ## 6. Setup & Deployment (TL;DR)
-
 ```bash
 # Clone
-git clone https://github.com/your-username/secure-devsecops-platform.git
-cd secure-devsecops-platform
+git clone https://github.com/panpiii/SecOps-Suite.git
+cd SecOps-Suite
 
 # Provision AWS infra (≈20 min)
 cd infra/terraform
@@ -117,11 +112,10 @@ aws eks update-kubeconfig --name devsecops-eks --region us-east-1
 make istio-install
 make argocd-install
 
-# Push first microservice image
+# Push first micro-service image
 cd services/vuln-scanner
 make ecr-login docker-build docker-push
 ```
-
 Detailed, step-by-step instructions live in [`/docs/setup`](docs/setup).
 
 ---
@@ -140,21 +134,18 @@ All endpoints require a **JWT issued by Cognito** (see [`/docs/auth`](docs/auth)
 ---
 
 ## 8. Observability & Incident Response
-
 * Grafana dashboards for cluster health and security KPIs.  
 * Alertmanager routes high-severity alerts to Slack/PagerDuty.  
-* Runbooks stored in `/runbooks` guide on-call responders.
+* Runbooks stored in `/runbooks` guide on-call responders.  
 
 ---
 
 ## 9. Contributing
-
 Pull requests are welcome! Please read [`CONTRIBUTING.md`](CONTRIBUTING.md) and open an issue before major changes.
 
 ---
 
 ## 10. Roadmap
-
 - [ ] Integrate **OPA Gatekeeper** for policy as code  
 - [ ] Chaos engineering experiments (Litmus)  
 - [ ] SOAR-style automated remediation workflows  
@@ -163,5 +154,4 @@ Pull requests are welcome! Please read [`CONTRIBUTING.md`](CONTRIBUTING.md) and 
 ---
 
 ## 11. License
-
 Distributed under the MIT License. See [`LICENSE`](LICENSE) for more information.
