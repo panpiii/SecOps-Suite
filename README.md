@@ -1,10 +1,21 @@
 # SecOps-Suite
 
-![Build](https://img.shields.io/github/actions/workflow/status/panpiii/SecOps-Suite/ci.yml?label=CI%20Status)
-![License](https://img.shields.io/github/license/panpiii/SecOps-Suite)
+This repository is a hands-on DevSecOps study project I’m working through to deepen my skills in cloud infrastructure, CI/CD pipelines, and security automation.
 
-A hands-on, end-to-end reference implementation that shows how to **design, build, and operate secure micro-services on AWS using modern DevOps & DevSecOps practices**.  
-It is intentionally opinionated toward security-first choices, making it an ideal portfolio project for roles in cybersecurity, FinTech, or cloud-infrastructure engineering.
+It was originally created by Factory AI as a teaching reference. I’m currently documenting and recreating the system to learn:
+
+* How to provision secure infrastructure using Terraform
+
+* How to deploy microservices on AWS EKS using Kubernetes
+
+* How to automate builds, tests, and security scans with GitHub Actions
+
+* How to embed shift-left security into the CI/CD pipeline using tools like Trivy, Cosign, and Kustomize
+
+📌 Status: In progress
+
+I’m currently auditing and rebuilding each layer, and documenting the architecture as I go.
+If you're a recruiter or hiring manager, feel free to explore or connect with me on LinkedIn.
 
 ---
 
